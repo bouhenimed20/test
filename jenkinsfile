@@ -1,0 +1,110 @@
+pipeline {
+    agent any
+
+    environment {
+        REPO_NAME = "my-repo"  // Set repository name
+        BUILD_DIR = "/var/www/html/${REPO_NAME}"
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                // Checkout the code from the repository
+                git 'https://github.com/your/repo.git'
+            }
+        }
+
+        stage('Check for Changes') {
+            steps {
+                script {
+                    // Get list of changed files since last commit
+                    CHANGED_FILES = sh(script: 'git diff --name-only HEAD~1 HEAD', returnStdout: true).trim()
+
+                    if (CHANGED_FILES == '') {
+                        echo 'No changes detected, skipping build.'
+                        currentBuild.result = 'SUCCESS'
+                        // Skip subsequent stages by calling error
+                        error('No changes detected')
+                    } else {
+                        echo "Changes detected: ${CHANGED_FILES}"
+                    }
+                }
+            }
+        }
+
+        stage('Prepare Build Directory') {
+            steps {
+                script {
+                    if (fileExists(BUILD_DIR)) {
+                        echo "Cleaning up build directory: ${BUILD_DIR}"
+                        sh "rm -rf ${BUILD_DIR}/*"
+                    } else {
+                        echo "Creating build directory: ${BUILD_DIR}"
+                        sh "mkdir -p ${BUILD_DIR}"
+                    }
+                }
+            }
+        }
+
+        stage('Copy Files') {
+            steps {
+                echo 'Copying files to build directory...'
+                sh "cp -r * ${BUILD_DIR}/"
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                echo "Building Docker image..."
+                sh "docker build -t ${REPO_NAME}:latest ${BUILD_DIR}"
+            }
+        }
+
+        stage('Handle Docker Container') {
+            steps {
+                script {
+                    // Check if the container is running
+                    RUNNING_CONTAINER = sh(script: "docker ps --filter 'name=${REPO_NAME}_container' -q", returnStdout: true).trim()
+
+                    if (RUNNING_CONTAINER) {
+                        echo 'Container is already running. Fetching port...'
+                        EXISTING_PORT = sh(script: "docker inspect --format='{{(index (index .NetworkSettings.Ports \"80/tcp\") 0).HostPort}}' ${REPO_NAME}_container", returnStdout: true).trim()
+                        echo "Container is using port ${EXISTING_PORT}. It will be reused."
+                    } else {
+                        echo 'No running container found. Looking for available port...'
+                        AVAILABLE_PORT = sh(script: 'shuf -i 8000-9000 -n 1', returnStdout: true).trim()
+                        echo "Found available port: ${AVAILABLE_PORT}"
+                    }
+                }
+            }
+        }
+
+        stage('Deploy Docker Container') {
+            steps {
+                script {
+                    // Stop and remove the existing container if any
+                    echo 'Stopping and removing old container (if exists)...'
+                    sh "docker stop ${REPO_NAME}_container || true"
+                    sh "docker rm ${REPO_NAME}_container || true"
+
+                    // Run the new container on the found or existing port
+                    echo "Running new container on port ${EXISTING_PORT ?: AVAILABLE_PORT}..."
+                    sh "docker run -d --name ${REPO_NAME}_container -p ${EXISTING_PORT ?: AVAILABLE_PORT}:80 ${REPO_NAME}:latest"
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            echo 'Cleaning up workspace...'
+            deleteDir()
+        }
+        success {
+            echo 'Build completed successfully!'
+        }
+        failure {
+            echo 'Build failed.'
+        }
+    }
+}
