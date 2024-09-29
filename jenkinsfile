@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        REPO_NAME = "my-repo"  // Set your repository name
+        REPO_NAME = "my-repo"  // Set your repository name (ensure this matches your actual repo)
         BUILD_DIR = "/var/www/html/${REPO_NAME}"
     }
 
@@ -48,14 +48,16 @@ pipeline {
         stage('Copy Files') {
             steps {
                 echo 'Copying files to build directory...'
-                sh "cp -r * ${BUILD_DIR}/" // Adjust if necessary to avoid overwriting
+                // Specify the files or adjust the command to avoid overwriting
+                sh "cp -r * ${BUILD_DIR}/"
             }
         }
 
         stage('Build Docker Image') {
             steps {
                 echo "Building Docker image..."
-                sh "docker build -t ${REPO_NAME}:latest ${BUILD_DIR}" // Adjust if needed
+                // Ensure your Dockerfile is in the correct location
+                sh "docker build -t ${REPO_NAME}:latest ${BUILD_DIR}"
             }
         }
 
