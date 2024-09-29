@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        REPO_NAME = "my-repo"  // Set repository name
+        REPO_NAME = "my-repo"  // Set your repository name
         BUILD_DIR = "/var/www/html/${REPO_NAME}"
     }
 
@@ -22,7 +22,7 @@ pipeline {
                     if (CHANGED_FILES == '') {
                         echo 'No changes detected, skipping build.'
                         currentBuild.result = 'SUCCESS'
-                        // Skip subsequent stages by calling error
+                        // Skip subsequent stages
                         error('No changes detected')
                     } else {
                         echo "Changes detected: ${CHANGED_FILES}"
@@ -48,14 +48,14 @@ pipeline {
         stage('Copy Files') {
             steps {
                 echo 'Copying files to build directory...'
-                sh "cp -r * ${BUILD_DIR}/"
+                sh "cp -r * ${BUILD_DIR}/" // Adjust if necessary to avoid overwriting
             }
         }
 
         stage('Build Docker Image') {
             steps {
                 echo "Building Docker image..."
-                sh "docker build -t ${REPO_NAME}:latest ${BUILD_DIR}"
+                sh "docker build -t ${REPO_NAME}:latest ${BUILD_DIR}" // Adjust if needed
             }
         }
 
